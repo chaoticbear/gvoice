@@ -107,7 +107,7 @@ func (gc *GVClient) runPuppeteer(ctx context.Context) {
 	var scriptChecksum string
 	var initedAt time.Time
 	doInit := func(ctx context.Context) error {
-		log.Debug().Msg("Creating Waa payload for Electron")
+		log.Debug().Msg("Creating Waa payload for Puppeteer")
 		waa, err := gc.Client.CreateWaa(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create Waa payload: %w", err)
@@ -215,8 +215,6 @@ Loop:
 		switch payload["status"] {
 		case "waiting_for_init":
 			err = doInit(ctx)
-			log.Debug().Msg("Creating Waa payload for Puppeteer")
-			waa, err := gc.Client.CreateWaa(ctx)
 			if err != nil {
 				log.Err(err).Msg("Failed to init Waa")
 				kill()
@@ -228,7 +226,7 @@ Loop:
 				pl, err := requestSignatureDirect(ctx, map[string]any{"blank_payload": true})
 				if err != nil {
 					log.Err(err).Msg("Failed to request signature for ping")
-				} else if err = gc.Client.PingWaa(ctx, pl, rand.Int63n(2000000000)); err != nil {
+				} else if err = gc.Client.PingWaa(ctx, pl, rand.Int64N(2000000000)); err != nil {
 					log.Err(err).Msg("Failed to send ping")
 				} else {
 					log.Info().Msg("Waa ping successful")
