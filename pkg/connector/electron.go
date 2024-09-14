@@ -71,21 +71,23 @@ func (gc *GVClient) runPuppeteer(ctx context.Context) {
 	}
 	_ = tmp.Close()
 	cmd := exec.CommandContext(ctx, node, tmp.Name())
-	// Optionally, you can set environment variables if needed
-	// cmd.Env = append(os.Environ(), "ENV_VAR=value")
-	cmd.Stderr = log.With().Str("stream", "stderr").Logger()
-	stdout, err := cmd.StdoutPipe()
+	// Set environment variable for debug mode if needed
+	if os.Getenv("MAUTRIX_GVOICE_PUPPETEER_DEBUG") == "true" {
+		cmd.Env = append(os.Environ(), "MAUTRIX_GVOICE_PUPPETEER_DEBUG=true")
+	}
+	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Err(err).Msg("Failed to get stdout pipe")
 		return
 	}
-	defer stdout.Close()
-	stdin, err := cmd.StdinPipe()
+	defer stdoutPipe.Close()
+	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		log.Err(err).Msg("Failed to get stdin pipe")
 		return
 	}
-	defer stdin.Close()
+	defer stdinPipe.Close()
+	cmd.Stderr = os.Stderr // Redirect stderr to standard error
 	gc.stopWait.Add(1)
 	defer gc.stopWait.Done()
 	err = cmd.Start()
@@ -98,8 +100,8 @@ func (gc *GVClient) runPuppeteer(ctx context.Context) {
 			_ = proc.Kill()
 		}
 	}
-	stdinJSON := json.NewEncoder(stdin)
-	stdoutJSON := json.NewDecoder(stdout)
+	stdinJSON := json.NewEncoder(stdinPipe)
+	stdoutJSON := json.NewDecoder(stdoutPipe)
 	responseWaiters := exsync.NewMap[string, chan<- puppeteerResponse]()
 	var program, globalName string
 	var scriptChecksum string
@@ -147,7 +149,7 @@ func (gc *GVClient) runPuppeteer(ctx context.Context) {
 		defer close(waiter)
 		zerolog.Ctx(ctx).Debug().
 			Str("req_id", reqID).
-			Any("payload", payload).
+			Interface("payload", payload).
 			Msg("Requesting signature for message")
 		err = stdinJSON.Encode(map[string]any{
 			"req_id":      reqID,
